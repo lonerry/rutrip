@@ -89,9 +89,9 @@ async function overpassNearby(lat: number, lng: number, zoom: number): Promise<H
   const query = `[out:json][timeout:10];(${overpassFilters(radius, lat, lng)});out tags center 25;`
   try {
     const data = await overpass(query)
-    const scored = (data?.elements ?? [])
+    const scored = (data.elements ?? [])
       .map((element) => toPoi(element, lat, lng))
-      .filter((item): item is HereItem & { score: number } => Boolean(item))
+      .filter((item): item is ScoredPoi => item !== null)
       .sort((a, b) => b.score - a.score)
     return scored.slice(0, 5).map(({ score: _score, ...item }) => item)
   } catch {
@@ -115,6 +115,8 @@ function overpassFilters(radius: number, lat: number, lng: number) {
   ].join(';')
 }
 
+type ScoredPoi = HereItem & { score: number }
+
 type OsmElement = {
   type?: string
   lat?: number
@@ -123,7 +125,7 @@ type OsmElement = {
   tags?: Record<string, string>
 }
 
-function toPoi(element: OsmElement, lat: number, lng: number) {
+function toPoi(element: OsmElement, lat: number, lng: number): ScoredPoi | null {
   const tags = element.tags ?? {}
   if (!isUseful(tags)) return null
   const poiLat = element.lat ?? element.center?.lat
@@ -185,7 +187,13 @@ function kindLabel(tags: Record<string, string>) {
 
 async function nominatim(lat: number, lng: number): Promise<HereLookup> {
   try {
-    const data = await fetchJson(
+    const data = await fetchJson<{
+      name?: string
+      type?: string
+      class?: string
+      namedetails?: Record<string, string>
+      address?: Record<string, string>
+    }>(
       `/nominatim/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&namedetails=1&accept-language=ru`,
     )
     const address = formatAddress(data?.address)
@@ -231,7 +239,7 @@ function meters(lat1: number, lng1: number, lat2: number, lng2: number) {
   return 2 * 6371000 * Math.asin(Math.sqrt(a))
 }
 
-async function overpass(query: string) {
+async function overpass(query: string): Promise<{ elements?: OsmElement[] }> {
   const body = `data=${encodeURIComponent(query)}`
   try {
     return await postJson('https://overpass-api.de/api/interpreter', body)
@@ -240,18 +248,18 @@ async function overpass(query: string) {
   }
 }
 
-async function postJson(url: string, body: string) {
+async function postJson<T>(url: string, body: string): Promise<T> {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body,
   })
   if (!response.ok) throw new Error(String(response.status))
-  return response.json()
+  return response.json() as Promise<T>
 }
 
-async function fetchJson(url: string) {
+async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
   if (!response.ok) throw new Error(String(response.status))
-  return response.json()
+  return response.json() as Promise<T>
 }
