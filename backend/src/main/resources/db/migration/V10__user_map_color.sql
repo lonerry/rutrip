@@ -1,0 +1,2 @@
+ALTER TABLE users
+    ADD COLUMN map_color VARCHAR(7) NOT NULL DEFAULT '#3b82f6';

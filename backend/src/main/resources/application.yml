@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: map
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/mapdb}
+    username: ${SPRING_DATASOURCE_USERNAME:map}
+    password: ${SPRING_DATASOURCE_PASSWORD:map}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 80MB
+      max-request-size: 250MB
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-use-a-256-bit-secret-key!!}
+    expiration-ms: 86400000
+  upload:
+    dir: ${UPLOAD_DIR:uploads}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs

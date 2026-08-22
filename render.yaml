@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: rutrip
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rutrip-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: VITE_YANDEX_MAPS_KEY
+        sync: false
+      - key: UPLOAD_DIR
+        value: /data/uploads
+      - key: JAVA_OPTS
+        value: "-XX:MaxRAMPercentage=70 -XX:+UseG1GC -XX:TieredStopAtLevel=1 -Dspring.jmx.enabled=false"
+
+databases:
+  - name: rutrip-db
+    plan: free
+    databaseName: mapdb
+    user: map

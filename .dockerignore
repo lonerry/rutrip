@@ -1,0 +1,10 @@
+.git
+.idea
+**/.DS_Store
+**/node_modules
+**/target
+**/dist
+backend/uploads
+frontend/dist
+**/*.log
+**/agent-transcripts
