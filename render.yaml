@@ -12,8 +12,6 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      - key: VITE_YANDEX_MAPS_KEY
-        sync: false
       - key: UPLOAD_DIR
         value: /data/uploads
       - key: JAVA_OPTS
