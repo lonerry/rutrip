@@ -8,7 +8,10 @@ export default defineConfig({
     port: 5173,
     allowedHosts: true,
     proxy: {
-      '/api': 'http://localhost:8080',
+      '/api': {
+        target: 'http://localhost:8080',
+        timeout: 600_000,
+      },
       '/yandex-geocode': {
         target: 'https://geocode-maps.yandex.ru',
         changeOrigin: true,

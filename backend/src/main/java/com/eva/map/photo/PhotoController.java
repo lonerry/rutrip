@@ -1,10 +1,14 @@
 package com.eva.map.photo;
 
 import com.eva.map.user.User;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +17,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -55,14 +60,32 @@ public class PhotoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<org.springframework.core.io.Resource> get(
+    public ResponseEntity<ResourceRegion> get(
             @AuthenticationPrincipal User user,
-            @PathVariable UUID id
-    ) {
+            @PathVariable UUID id,
+            @RequestHeader HttpHeaders headers
+    ) throws IOException {
         PhotoService.LoadedPhoto photo = photoService.load(user, id);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_TYPE, photo.contentType())
-                .body(photo.resource());
+        Resource resource = photo.resource();
+        long length = resource.contentLength();
+        MediaType mediaType = MediaType.parseMediaType(photo.contentType());
+        List<HttpRange> ranges = headers.getRange();
+
+        ResourceRegion region;
+        HttpStatus status;
+        if (ranges.isEmpty()) {
+            region = new ResourceRegion(resource, 0, length);
+            status = HttpStatus.OK;
+        } else {
+            region = ranges.getFirst().toResourceRegion(resource);
+            status = HttpStatus.PARTIAL_CONTENT;
+        }
+
+        return ResponseEntity.status(status)
+                .contentType(mediaType)
+                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600")
+                .body(region);
     }
 
     @DeleteMapping("/{id}")

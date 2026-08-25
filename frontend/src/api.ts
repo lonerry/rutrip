@@ -143,11 +143,8 @@ export async function loadAvatarBlob(path: string) {
   return URL.createObjectURL(await response.blob())
 }
 
-export async function loadPhotoBlob(id: string) {
+export function photoUrl(id: string) {
   const token = getToken()
-  const response = await fetch(`/api/photos/${id}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  })
-  if (!response.ok) throw new Error('Не удалось загрузить фото')
-  return URL.createObjectURL(await response.blob())
+  if (!token) return `/api/photos/${id}`
+  return `/api/photos/${id}?token=${encodeURIComponent(token)}`
 }

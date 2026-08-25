@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { loadPhotoBlob } from '../api'
+import { photoUrl } from '../api'
 
 export function isVideo(contentType: string | undefined) {
   return (contentType ?? '').startsWith('video/')
@@ -18,24 +17,18 @@ export function AuthMedia({
   className?: string
   controls?: boolean
 }) {
-  const [src, setSrc] = useState<string>()
-
-  useEffect(() => {
-    let url: string | undefined
-    loadPhotoBlob(id)
-      .then((value) => {
-        url = value
-        setSrc(value)
-      })
-      .catch(() => setSrc(undefined))
-    return () => {
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [id])
-
-  if (!src) return <div className={`pulse ${className}`} />
+  const src = photoUrl(id)
   if (isVideo(contentType)) {
-    return <video src={src} className={className} controls={controls} playsInline preload="metadata" />
+    return (
+      <video
+        className={className}
+        controls={controls}
+        playsInline
+        preload="metadata"
+      >
+        <source src={src} type={contentType} />
+      </video>
+    )
   }
   return <img src={src} alt={alt} className={className} />
 }
