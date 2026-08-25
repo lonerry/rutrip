@@ -3,9 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { api } from '../api'
-import { MapColorPicker } from '../components/MapColorPicker'
 import { UserAvatar } from '../components/UserAvatar'
-import { normalizeMapColor } from '../mapColor'
 import type { Place, Region, Story } from '../types'
 
 type ProfileList = 'regions' | 'places' | 'stories'
@@ -234,24 +232,6 @@ export function ProfilePage() {
                     <span className="muted">{region.type}</span>
                   </div>
                   <div className="list-row-actions">
-                    {region.visitId && (
-                      <MapColorPicker
-                        value={normalizeMapColor(region.color)}
-                        disabled={busy}
-                        onChange={(color) => {
-                          setBusy(true)
-                          setError('')
-                          api
-                            .updateVisitColor(region.visitId!, color)
-                            .then(async () => {
-                              const next = await api.regions()
-                              setRegions(next)
-                            })
-                            .catch((err) => setError(err instanceof Error ? err.message : 'Не получилось сменить цвет'))
-                            .finally(() => setBusy(false))
-                        }}
-                      />
-                    )}
                     <Link className="btn ghost" to={`/map?region=${encodeURIComponent(region.code)}`}>
                       На карте
                     </Link>

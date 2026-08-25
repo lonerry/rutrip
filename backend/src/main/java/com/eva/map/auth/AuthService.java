@@ -7,9 +7,16 @@ import com.eva.map.user.User;
 import com.eva.map.user.UserRepository;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -37,20 +44,30 @@ public class AuthService {
     private static final Set<String> ALLOWED_TYPES = Set.copyOf(IMAGE_TYPES.values());
 
     private final UserRepository userRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final MailService mailService;
     private final Path uploadDir;
+    private final String publicUrl;
+    private final SecureRandom random = new SecureRandom();
 
     public AuthService(
             UserRepository userRepository,
+            PasswordResetTokenRepository passwordResetTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            @Value("${app.upload.dir}") String uploadDir
+            MailService mailService,
+            @Value("${app.upload.dir}") String uploadDir,
+            @Value("${app.public-url}") String publicUrl
     ) throws IOException {
         this.userRepository = userRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.mailService = mailService;
         this.uploadDir = Path.of(uploadDir).toAbsolutePath().normalize();
+        this.publicUrl = publicUrl.endsWith("/") ? publicUrl.substring(0, publicUrl.length() - 1) : publicUrl;
         Files.createDirectories(this.uploadDir);
     }
 
@@ -75,6 +92,35 @@ public class AuthService {
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid credentials");
         }
+        return toAuthResponse(user);
+    }
+
+    @Transactional
+    public MessageResponse forgotPassword(ForgotPasswordRequest request) {
+        String email = request.email().trim();
+        userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
+            passwordResetTokenRepository.deleteByUserId(user.getId());
+            String token = newToken();
+            PasswordResetToken row = new PasswordResetToken();
+            row.setUser(user);
+            row.setTokenHash(hashToken(token));
+            row.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
+            passwordResetTokenRepository.save(row);
+            mailService.sendPasswordReset(user.getEmail(), publicUrl + "/reset-password?token=" + token);
+        });
+        return new MessageResponse("Если такой email есть в Rutrip, отправим ссылку для нового пароля.");
+    }
+
+    @Transactional
+    public AuthResponse resetPassword(ResetPasswordRequest request) {
+        PasswordResetToken row = passwordResetTokenRepository.findByTokenHash(hashToken(request.token().trim()))
+                .orElseThrow(() -> new BadRequestException("Ссылка устарела или уже использована. Запроси новую."));
+        if (row.getUsedAt() != null || row.getExpiresAt().isBefore(Instant.now())) {
+            throw new BadRequestException("Ссылка устарела или уже использована. Запроси новую.");
+        }
+        User user = row.getUser();
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        passwordResetTokenRepository.deleteByUserId(user.getId());
         return toAuthResponse(user);
     }
 
@@ -215,6 +261,21 @@ public class AuthService {
                 .map(Map.Entry::getKey)
                 .findFirst()
                 .orElse(".jpg");
+    }
+
+    private String newToken() {
+        byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+    }
+
+    private String hashToken(String token) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     public record LoadedAvatar(Resource resource, String contentType) {

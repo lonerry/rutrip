@@ -1,5 +1,6 @@
 import { Bell } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
 import type { AppNotification, NotificationFeed } from '../types'
@@ -17,6 +18,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string>()
   const root = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
 
   async function reload() {
     setFeed(await api.notifications())
@@ -33,7 +35,9 @@ export function NotificationBell() {
   useEffect(() => {
     if (!open) return
     const onClick = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Node
+      if (root.current?.contains(target) || panel.current?.contains(target)) return
+      setOpen(false)
     }
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
@@ -88,53 +92,55 @@ export function NotificationBell() {
           <span className="notify-badge">{feed.unreadCount > 9 ? '9+' : feed.unreadCount}</span>
         )}
       </button>
-      {open && (
-        <div className="notify-panel">
-          <div className="notify-head">Уведомления</div>
-          {feed.items.length === 0 ? (
-            <p className="muted notify-empty">Пока тихо — заявки в друзья появятся здесь.</p>
-          ) : (
-            <ul className="notify-list">
-              {feed.items.map((item) => (
-                <li key={item.id} className={`notify-item${item.read ? '' : ' unread'}`}>
-                  <UserAvatar
-                    name={item.actor.displayName}
-                    avatarUrl={item.actor.avatarUrl}
-                    className="header-avatar"
-                  />
-                  <div className="notify-body">
-                    <p>{textFor(item)}</p>
-                    {item.type === 'FRIEND_REQUEST' ? (
-                      <div className="notify-actions">
-                        <button
-                          className="btn teal"
-                          type="button"
-                          disabled={busyId === item.id}
-                          onClick={() => void act(item, () => api.acceptFriend(item.actor.id))}
-                        >
-                          Принять
-                        </button>
-                        <button
-                          className="btn ghost"
-                          type="button"
-                          disabled={busyId === item.id}
-                          onClick={() => void act(item, () => api.removeFriend(item.actor.id))}
-                        >
-                          Отклонить
-                        </button>
-                      </div>
-                    ) : (
-                      <Link className="notify-link" to={`/people/${item.actor.id}`} onClick={() => setOpen(false)}>
-                        Открыть профиль
-                      </Link>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div className="notify-panel" ref={panel}>
+            <div className="notify-head">Уведомления</div>
+            {feed.items.length === 0 ? (
+              <p className="muted notify-empty">Пока тихо — заявки в друзья появятся здесь.</p>
+            ) : (
+              <ul className="notify-list">
+                {feed.items.map((item) => (
+                  <li key={item.id} className={`notify-item${item.read ? '' : ' unread'}`}>
+                    <UserAvatar
+                      name={item.actor.displayName}
+                      avatarUrl={item.actor.avatarUrl}
+                      className="header-avatar"
+                    />
+                    <div className="notify-body">
+                      <p>{textFor(item)}</p>
+                      {item.type === 'FRIEND_REQUEST' ? (
+                        <div className="notify-actions">
+                          <button
+                            className="btn teal"
+                            type="button"
+                            disabled={busyId === item.id}
+                            onClick={() => void act(item, () => api.acceptFriend(item.actor.id))}
+                          >
+                            Принять
+                          </button>
+                          <button
+                            className="btn ghost"
+                            type="button"
+                            disabled={busyId === item.id}
+                            onClick={() => void act(item, () => api.removeFriend(item.actor.id))}
+                          >
+                            Отклонить
+                          </button>
+                        </div>
+                      ) : (
+                        <Link className="notify-link" to={`/people/${item.actor.id}`} onClick={() => setOpen(false)}>
+                          Открыть профиль
+                        </Link>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

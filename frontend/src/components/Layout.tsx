@@ -4,6 +4,17 @@ import { useAuth } from '../auth'
 import { NotificationBell } from './NotificationBell'
 import { UserAvatar } from './UserAvatar'
 
+function MainNav({ className }: { className: string }) {
+  return (
+    <nav className={className}>
+      <NavLink to="/map">Карта</NavLink>
+      <NavLink to="/stories">Истории</NavLink>
+      <NavLink to="/people">Люди</NavLink>
+      <NavLink to="/profile">Профиль</NavLink>
+    </nav>
+  )
+}
+
 export function Layout() {
   const { user, logout } = useAuth()
   const location = useLocation()
@@ -18,36 +29,34 @@ export function Layout() {
           </span>
           <span className="brand-name">Rutrip</span>
         </NavLink>
-        <nav className="pill-nav">
-          <NavLink to="/map">Карта</NavLink>
-          <NavLink to="/stories">Истории</NavLink>
-          <NavLink to="/people">Люди</NavLink>
-          <NavLink to="/profile">Профиль</NavLink>
-        </nav>
-        <div className="header-actions">
-          {user ? (
-            <>
-              <NotificationBell />
-              <Link to="/profile" className="header-user">
-                <UserAvatar name={user.displayName} avatarUrl={user.avatarUrl} className="header-avatar" />
-                <span className="muted">{user.displayName}</span>
-              </Link>
-              <button className="btn ghost header-logout" onClick={logout} type="button">
-                Выйти
-              </button>
-            </>
-          ) : (
-            <>
-              <NavLink to="/login" className="muted">
-                Войти
-              </NavLink>
-              <NavLink to="/register" className="btn">
-                Начать
-              </NavLink>
-            </>
-          )}
+        <MainNav className="pill-nav" />
+        <div className="header-end">
+          {user && <NotificationBell />}
+          <div className="header-actions">
+            {user ? (
+              <>
+                <Link to="/profile" className="header-user">
+                  <UserAvatar name={user.displayName} avatarUrl={user.avatarUrl} className="header-avatar" />
+                  <span className="muted">{user.displayName}</span>
+                </Link>
+                <button className="btn ghost header-logout" onClick={logout} type="button">
+                  Выйти
+                </button>
+              </>
+            ) : (
+              <>
+                <NavLink to="/login" className="muted header-login">
+                  Войти
+                </NavLink>
+                <NavLink to="/register" className="btn">
+                  Начать
+                </NavLink>
+              </>
+            )}
+          </div>
         </div>
       </header>
+      <MainNav className="tab-nav" />
       <div className={isMap ? 'map-shell' : 'page'}>
         <Outlet />
       </div>

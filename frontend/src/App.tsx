@@ -3,11 +3,13 @@ import { AuthProvider } from './auth'
 import { Layout } from './components/Layout'
 import { Protected } from './components/Protected'
 import { AuthPage } from './pages/AuthPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { FriendPage } from './pages/FriendPage'
 import { Landing } from './pages/Landing'
 import { MapPage } from './pages/MapPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { ProfilePage } from './pages/ProfilePage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { StoriesPage } from './pages/StoriesPage'
 
 export default function App() {
@@ -19,6 +21,8 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/map"
               element={

@@ -47,6 +47,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
+  forgotPassword: (email: string) =>
+    request<{ message: string }>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, password: string) =>
+    request<AuthResponse>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
   me: () => request<User>('/api/me'),
   updateMe: (patch: { displayName?: string; mapColor?: string }) =>
     request<User>('/api/me', {

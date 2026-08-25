@@ -10,11 +10,13 @@ export function AuthMedia({
   alt,
   contentType,
   className = '',
+  controls = true,
 }: {
   id: string
   alt: string
   contentType?: string
   className?: string
+  controls?: boolean
 }) {
   const [src, setSrc] = useState<string>()
 
@@ -33,7 +35,7 @@ export function AuthMedia({
 
   if (!src) return <div className={`pulse ${className}`} />
   if (isVideo(contentType)) {
-    return <video src={src} className={className} controls playsInline preload="metadata" />
+    return <video src={src} className={className} controls={controls} playsInline preload="metadata" />
   }
   return <img src={src} alt={alt} className={className} />
 }

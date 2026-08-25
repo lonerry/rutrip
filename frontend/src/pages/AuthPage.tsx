@@ -44,6 +44,11 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           Пароль
           <input type="password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </label>
+        {mode === 'login' && (
+          <p className="auth-forgot">
+            <Link to="/forgot-password">Забыли пароль?</Link>
+          </p>
+        )}
         <button className="btn full" style={{ marginTop: 20 }} type="submit">
           {mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
         </button>

@@ -44,6 +44,18 @@ public class AuthController {
         return authService.login(request);
     }
 
+    @SecurityRequirements
+    @PostMapping("/auth/forgot-password")
+    public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return authService.forgotPassword(request);
+    }
+
+    @SecurityRequirements
+    @PostMapping("/auth/reset-password")
+    public AuthResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return authService.resetPassword(request);
+    }
+
     @GetMapping("/me")
     public MeResponse me(@AuthenticationPrincipal User user) {
         return authService.me(user);

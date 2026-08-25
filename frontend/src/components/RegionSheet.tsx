@@ -1,7 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import type { Photo, Place, Region, Story } from '../types'
-import { AuthMedia } from './AuthPhoto'
+import { MediaGallery } from './MediaLightbox'
 import { MapColorPicker } from './MapColorPicker'
 import { MediaAttach } from './MediaAttach'
 import { normalizeMapColor } from '../mapColor'
@@ -24,6 +25,8 @@ export function RegionSheet({
   onClose,
   onReload,
   onAddPlace,
+  onOpenPlace,
+  storyHref,
   readOnly = false,
 }: {
   region: Region
@@ -34,6 +37,8 @@ export function RegionSheet({
   onClose: () => void
   onReload: () => Promise<void>
   onAddPlace: () => void
+  onOpenPlace: (place: Place) => void
+  storyHref: (story: Story) => string
   readOnly?: boolean
 }) {
   const [tab, setTab] = useState<'photos' | 'stories' | 'places'>('photos')
@@ -44,6 +49,7 @@ export function RegionSheet({
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
   const [storyFiles, setStoryFiles] = useState<File[]>([])
   const [writing, setWriting] = useState(false)
+  const [storyPublished, setStoryPublished] = useState(false)
 
   const regionStories = useMemo(
     () => stories.filter((story) => story.regionId === region.id),
@@ -127,6 +133,7 @@ export function RegionSheet({
       setTitle('')
       setBody('')
       setStoryFiles([])
+      setStoryPublished(true)
       await onReload()
       setTab('stories')
     } catch (err) {
@@ -230,16 +237,8 @@ export function RegionSheet({
             {regionPhotos.length === 0 ? (
               <p className="muted">{readOnly ? 'Пока нет фото и видео.' : 'Пока нет фото и видео. Загрузи первые воспоминания.'}</p>
             ) : (
-              <div className="photos" style={{ marginTop: 12 }}>
-                {regionPhotos.map((photo) => (
-                  <AuthMedia
-                    key={photo.id}
-                    id={photo.id}
-                    alt={region.name}
-                    contentType={photo.contentType}
-                    className="cover"
-                  />
-                ))}
+              <div style={{ marginTop: 12 }}>
+                <MediaGallery photos={regionPhotos} alt={region.name} />
               </div>
             )}
           </>
@@ -248,22 +247,22 @@ export function RegionSheet({
         {tab === 'stories' && (
           <>
             {!readOnly && !writing && (
-              <button className="btn full light" type="button" onClick={() => setWriting(true)}>
+              <button className="btn full light" type="button" onClick={() => { setStoryPublished(false); setWriting(true) }}>
                 Написать историю
               </button>
             )}
             {!readOnly && writing && (
             <form className="sheet-form" onSubmit={createStory}>
-              <input className="input" placeholder="Заголовок" value={title} onChange={(e) => setTitle(e.target.value)} required />
-              <textarea className="area" rows={3} placeholder="Что здесь произошло?" value={body} onChange={(e) => setBody(e.target.value)} required />
+              <input className="input" placeholder="Заголовок" value={title} onChange={(e) => { setStoryPublished(false); setTitle(e.target.value) }} required />
+              <textarea className="area" rows={3} placeholder="Что здесь произошло?" value={body} onChange={(e) => { setStoryPublished(false); setBody(e.target.value) }} required />
               <MediaAttach
                 files={storyFiles}
-                onChange={setStoryFiles}
+                onChange={(next) => { setStoryPublished(false); setStoryFiles(next) }}
                 emptyLabel="Фото или видео"
               />
               <div className="sheet-form-actions">
-                <button className="btn teal" disabled={busy} type="submit">
-                  Сохранить
+                <button className="btn teal" disabled={busy || storyPublished} type="submit">
+                  {busy ? 'Публикую…' : storyPublished ? 'Опубликовано' : 'Опубликовать'}
                 </button>
                 <button
                   className="btn ghost"
@@ -271,6 +270,7 @@ export function RegionSheet({
                   disabled={busy}
                   onClick={() => {
                     setWriting(false)
+                    setStoryPublished(false)
                     setStoryFiles([])
                   }}
                 >
@@ -283,10 +283,11 @@ export function RegionSheet({
               <p className="muted">{readOnly ? 'Историй ещё нет.' : 'Историй ещё нет — напиши первую.'}</p>
             ) : (
               regionStories.map((story) => (
-                <article key={story.id} className="story-item">
+                <Link key={story.id} className="story-item story-item-link" to={storyHref(story)}>
                   <h3 style={{ margin: 0 }}>{story.title}</h3>
                   <p className="muted">{story.body}</p>
-                </article>
+                  <span className="story-read">Открыть историю</span>
+                </Link>
               ))
             )}
           </>
@@ -303,13 +304,13 @@ export function RegionSheet({
               <p className="muted">{readOnly ? 'Точек нет.' : 'Точек нет. Нажми кнопку, затем кликни место на карте.'}</p>
             ) : (
               regionPlaces.map((place) => (
-                <article key={place.id} className="story-item">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-                    <div>
-                      <h3 style={{ margin: 0 }}>{place.title}</h3>
-                      {place.description && <p className="muted" style={{ margin: '6px 0 0' }}>{place.description}</p>}
-                    </div>
-                    {!readOnly && (
+                <div key={place.id} className="story-item story-item-row">
+                  <button type="button" className="story-item-main" onClick={() => onOpenPlace(place)}>
+                    <h3 style={{ margin: 0 }}>{place.title}</h3>
+                    {place.description && <p className="muted" style={{ margin: '6px 0 0' }}>{place.description}</p>}
+                    <span className="story-read">Показать на карте</span>
+                  </button>
+                  {!readOnly && (
                     <button
                       className="btn ghost"
                       type="button"
@@ -318,9 +319,8 @@ export function RegionSheet({
                     >
                       Удалить
                     </button>
-                    )}
-                  </div>
-                </article>
+                  )}
+                </div>
               ))
             )}
           </>

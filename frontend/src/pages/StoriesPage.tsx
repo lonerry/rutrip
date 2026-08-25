@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { AuthMedia } from '../components/AuthPhoto'
 import { MediaAttach } from '../components/MediaAttach'
+import { MediaGallery } from '../components/MediaLightbox'
 import type { Photo, Region, Story } from '../types'
 
 export function StoriesPage() {
@@ -22,6 +23,7 @@ export function StoriesPage() {
   const [editFiles, setEditFiles] = useState<File[]>([])
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
+  const [published, setPublished] = useState(false)
   const [params, setParams] = useSearchParams()
 
   async function reload() {
@@ -85,8 +87,8 @@ export function StoriesPage() {
       setBody('')
       setRegionId('')
       setFiles([])
+      setPublished(true)
       await reload()
-      openStory(story.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не получилось сохранить историю')
     } finally {
@@ -168,24 +170,24 @@ export function StoriesPage() {
           <h2>Новая история</h2>
           <label className="field">
             Заголовок
-            <input className="input" placeholder="Например, рассвет на Каме" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <input className="input" placeholder="Например, рассвет на Каме" value={title} onChange={(e) => { setPublished(false); setTitle(e.target.value) }} required />
           </label>
           <label className="field">
             Текст
-            <textarea className="area" rows={6} placeholder="Что запомнилось" value={body} onChange={(e) => setBody(e.target.value)} required />
+            <textarea className="area" rows={6} placeholder="Что запомнилось" value={body} onChange={(e) => { setPublished(false); setBody(e.target.value) }} required />
           </label>
           <label className="field">
             Регион
-            <select className="input" value={regionId} onChange={(e) => setRegionId(e.target.value)}>
+            <select className="input" value={regionId} onChange={(e) => { setPublished(false); setRegionId(e.target.value) }}>
               <option value="">Без региона</option>
               {regions.map((region) => (
                 <option key={region.id} value={region.id}>{region.name}</option>
               ))}
             </select>
           </label>
-          <MediaAttach files={files} onChange={setFiles} />
-          <button className="btn full" style={{ marginTop: 14 }} type="submit" disabled={busy}>
-            {busy ? 'Публикую…' : 'Опубликовать'}
+          <MediaAttach files={files} onChange={(next) => { setPublished(false); setFiles(next) }} />
+          <button className="btn full" style={{ marginTop: 14 }} type="submit" disabled={busy || published}>
+            {busy ? 'Публикую…' : published ? 'Опубликовано' : 'Опубликовать'}
           </button>
         </form>
 
@@ -312,17 +314,7 @@ export function StoriesPage() {
                   </div>
                 </div>
                 <p className="story-reader-body">{open.body}</p>
-                <div className="photos" style={{ marginTop: 16 }}>
-                  {(photosByStory.get(open.id) ?? []).map((photo) => (
-                    <AuthMedia
-                      key={photo.id}
-                      id={photo.id}
-                      alt={open.title}
-                      contentType={photo.contentType}
-                      className="cover"
-                    />
-                  ))}
-                </div>
+                <MediaGallery photos={photosByStory.get(open.id) ?? []} alt={open.title} />
                 <button
                   className="btn danger"
                   style={{ marginTop: 20 }}

@@ -263,6 +263,15 @@ function HereBalloon({
   )
 }
 
+function FlyToPlace({ place }: { place?: Place }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!place) return
+    map.flyTo([place.lat, place.lng], Math.max(map.getZoom(), 13), { duration: 0.55 })
+  }, [map, place?.id, place?.lat, place?.lng])
+  return null
+}
+
 function PlaceBalloon({
   place,
   photos,
@@ -642,6 +651,7 @@ export function MapPage() {
             }}
           />
         ))}
+        <FlyToPlace place={openPlace} />
         {openPlace && (
           <PlaceBalloon
             place={openPlace}
@@ -685,6 +695,12 @@ export function MapPage() {
             setFormPos(null)
             setAddingPlace(true)
           }}
+          onOpenPlace={(place) => {
+            setHere(null)
+            setSelectedCode(undefined)
+            setOpenPlaceId(place.id)
+          }}
+          storyHref={(story) => (friendId ? `/people/${friendId}?open=${story.id}` : `/stories?open=${story.id}`)}
           readOnly={readOnly}
         />
       )}

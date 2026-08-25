@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '../api'
 import type { Photo, Place } from '../types'
 import { AuthMedia, isVideo } from './AuthPhoto'
+import { MediaLightbox, MediaThumb } from './MediaLightbox'
 
 export function PlacePopup({
   place,
@@ -22,7 +23,9 @@ export function PlacePopup({
   const [title, setTitle] = useState(place.title)
   const [description, setDescription] = useState(place.description ?? '')
   const [file, setFile] = useState<File>()
+  const [openMedia, setOpenMedia] = useState<number | null>(null)
 
+  const placePhotos = photos.filter((photo) => photo.placeId === place.id)
   const preview =
     photos.find((photo) => photo.placeId === place.id && !isVideo(photo.contentType)) ??
     photos.find((photo) => photo.placeId === place.id)
@@ -117,7 +120,12 @@ export function PlacePopup({
   return (
     <div className="place-card" onClick={(event) => event.stopPropagation()}>
       {preview ? (
-        <AuthMedia id={preview.id} alt={place.title} contentType={preview.contentType} className="place-card-preview" />
+        <MediaThumb
+          photo={preview}
+          alt={place.title}
+          className="place-card-preview"
+          onOpen={() => setOpenMedia(Math.max(0, placePhotos.findIndex((photo) => photo.id === preview.id)))}
+        />
       ) : readOnly ? null : (
         <label className="place-card-add">
           <ImagePlus size={16} />
@@ -168,6 +176,15 @@ export function PlacePopup({
             <Trash2 size={13} />
           </button>
         </div>
+      )}
+      {openMedia != null && placePhotos.length > 0 && (
+        <MediaLightbox
+          photos={placePhotos}
+          index={openMedia}
+          alt={place.title}
+          onClose={() => setOpenMedia(null)}
+          onIndex={setOpenMedia}
+        />
       )}
     </div>
   )

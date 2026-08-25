@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mapdb
+      POSTGRES_USER: map
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-map}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: postgres -c shared_buffers=128MB -c max_connections=40
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U map -d mapdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_YANDEX_MAPS_KEY: ${VITE_YANDEX_MAPS_KEY:-}
+    ports:
+      - "80:8080"
+    environment:
+      PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mapdb
+      SPRING_DATASOURCE_USERNAME: map
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-map}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-use-a-256-bit-secret-key!!}
+      UPLOAD_DIR: /data/uploads
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-Rutrip <noreply@localhost>}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-true}
+      JAVA_OPTS: "-XX:MaxRAMPercentage=45 -XX:+UseG1GC -XX:TieredStopAtLevel=1 -Dspring.jmx.enabled=false"
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:
