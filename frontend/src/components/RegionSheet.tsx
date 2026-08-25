@@ -43,6 +43,7 @@ export function RegionSheet({
 }) {
   const [tab, setTab] = useState<'photos' | 'stories' | 'places'>('photos')
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [localError, setLocalError] = useState('')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -109,6 +110,7 @@ export function RegionSheet({
     event.preventDefault()
     if (photoFiles.length === 0) return
     setBusy(true)
+    setUploading(true)
     setLocalError('')
     try {
       const visitId = await ensureVisit()
@@ -119,12 +121,14 @@ export function RegionSheet({
       setLocalError(err instanceof Error ? err.message : 'Не получилось загрузить фото')
     } finally {
       setBusy(false)
+      setUploading(false)
     }
   }
 
   async function createStory(event: FormEvent) {
     event.preventDefault()
     setBusy(true)
+    setUploading(true)
     setLocalError('')
     try {
       await ensureVisit()
@@ -140,6 +144,7 @@ export function RegionSheet({
       setLocalError(err instanceof Error ? err.message : 'Не получилось сохранить историю')
     } finally {
       setBusy(false)
+      setUploading(false)
     }
   }
 
@@ -226,10 +231,11 @@ export function RegionSheet({
                   files={photoFiles}
                   onChange={setPhotoFiles}
                   emptyLabel="+ Добавить фото и видео"
+                  uploading={uploading && tab === 'photos'}
                 />
                 {photoFiles.length > 0 && (
                   <button className="btn full" style={{ marginTop: 10 }} disabled={busy} type="submit">
-                    Загрузить {photoFiles.length}
+                    {uploading ? 'Загружаю…' : `Загрузить ${photoFiles.length}`}
                   </button>
                 )}
               </form>
@@ -259,6 +265,8 @@ export function RegionSheet({
                 files={storyFiles}
                 onChange={(next) => { setStoryPublished(false); setStoryFiles(next) }}
                 emptyLabel="Фото или видео"
+                uploading={uploading && writing}
+                uploadingLabel={storyFiles.length > 0 ? 'Загружаю фото…' : 'Публикую…'}
               />
               <div className="sheet-form-actions">
                 <button className="btn teal" disabled={busy || storyPublished} type="submit">

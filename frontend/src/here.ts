@@ -1,3 +1,5 @@
+import { api } from './api'
+
 export type HereItem = {
   name: string
   description?: string
@@ -11,6 +13,18 @@ export type HereLookup = {
 }
 
 const KIND_RU: Record<string, string> = {
+  water: 'водоём',
+  reservoir: 'водохранилище',
+  lake: 'озеро',
+  river: 'река',
+  peak: 'вершина',
+  volcano: 'вулкан',
+  island: 'остров',
+  wood: 'лес',
+  village: 'село',
+  town: 'город',
+  city: 'город',
+  hamlet: 'деревня',
   cafe: 'кафе',
   restaurant: 'ресторан',
   fast_food: 'быстрое питание',
@@ -75,6 +89,11 @@ const KIND_RU: Record<string, string> = {
   library: 'библиотека',
   townhall: 'администрация',
   government: 'учреждение',
+}
+
+export function ruKind(kind?: string | null) {
+  if (!kind) return undefined
+  return KIND_RU[kind] || kind.replace(/_/g, ' ')
 }
 
 export async function lookupHere(lat: number, lng: number, zoom = 16): Promise<HereLookup> {
@@ -187,33 +206,19 @@ function kindLabel(tags: Record<string, string>) {
 
 async function nominatim(lat: number, lng: number): Promise<HereLookup> {
   try {
-    const data = await fetchJson<{
-      name?: string
-      type?: string
-      class?: string
-      namedetails?: Record<string, string>
-      address?: Record<string, string>
-    }>(
-      `/nominatim/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&namedetails=1&accept-language=ru`,
-    )
-    const address = formatAddress(data?.address)
-    const named = data?.namedetails?.['name:ru'] || data?.name
-    const kind = data?.type ? KIND_RU[data.type] || String(data.type).replace(/_/g, ' ') : undefined
+    const data = await api.geoReverse(lat, lng)
+    if (!data) return { items: [] }
+    const named = data.name
+    const address = data.description ?? undefined
+    const kind = data.kind ? KIND_RU[data.kind] || data.kind.replace(/_/g, ' ') : undefined
     const items: HereItem[] = []
-    if (named && !looksLikeCoords(named) && data?.class !== 'place' && data?.class !== 'boundary') {
+    if (named && !looksLikeCoords(named)) {
       items.push({ name: named, kind, description: address !== named ? address : undefined })
     }
-    return { items, address }
+    return { items, address: address && address !== named ? address : undefined }
   } catch {
     return { items: [] }
   }
-}
-
-function formatAddress(address?: Record<string, string>) {
-  if (!address) return undefined
-  const street = [address.road, address.house_number].filter(Boolean).join(', ')
-  const place = address.city || address.town || address.village || address.suburb
-  return [street || address.neighbourhood, place].filter(Boolean).join(', ') || undefined
 }
 
 function unique(items: HereItem[]) {
@@ -254,12 +259,6 @@ async function postJson<T>(url: string, body: string): Promise<T> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body,
   })
-  if (!response.ok) throw new Error(String(response.status))
-  return response.json() as Promise<T>
-}
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url)
   if (!response.ok) throw new Error(String(response.status))
   return response.json() as Promise<T>
 }

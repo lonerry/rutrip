@@ -39,6 +39,15 @@ export type Place = {
   regionId: string | null
 }
 
+export type GeoHit = {
+  name: string
+  description: string | null
+  lat: number
+  lng: number
+  bbox?: number[] | null
+  kind?: string | null
+}
+
 export type Story = {
   id: string
   title: string

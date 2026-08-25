@@ -1,4 +1,4 @@
-import type { AuthResponse, NotificationFeed, Person, Photo, Place, Region, Story, User, Visit } from './types'
+import type { AuthResponse, GeoHit, NotificationFeed, Person, Photo, Place, Region, Story, User, Visit } from './types'
 
 const TOKEN_KEY = 'map.token'
 
@@ -112,6 +112,16 @@ export const api = {
   personStories: (id: string) => request<Story[]>(`/api/people/${id}/stories`),
   personPlaces: (id: string) => request<Place[]>(`/api/people/${id}/places`),
   personPhotos: (id: string) => request<Photo[]>(`/api/people/${id}/photos`),
+  geoSearch: (q: string, near?: { lat: number; lng: number }) => {
+    const params = new URLSearchParams({ q })
+    if (near) {
+      params.set('lat', String(near.lat))
+      params.set('lng', String(near.lng))
+    }
+    return request<GeoHit[]>(`/api/geo/search?${params}`)
+  },
+  geoReverse: (lat: number, lng: number) =>
+    request<GeoHit | null>(`/api/geo/reverse?lat=${lat}&lng=${lng}`),
   friends: () => request<Person[]>('/api/friends'),
   incomingFriends: () => request<Person[]>('/api/friends/incoming'),
   requestFriend: (userId: string) =>

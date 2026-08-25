@@ -185,7 +185,12 @@ export function StoriesPage() {
               ))}
             </select>
           </label>
-          <MediaAttach files={files} onChange={(next) => { setPublished(false); setFiles(next) }} />
+          <MediaAttach
+            files={files}
+            onChange={(next) => { setPublished(false); setFiles(next) }}
+            uploading={busy && !editing}
+            uploadingLabel={files.length > 0 ? 'Загружаю фото…' : 'Публикую…'}
+          />
           <button className="btn full" style={{ marginTop: 14 }} type="submit" disabled={busy || published}>
             {busy ? 'Публикую…' : published ? 'Опубликовано' : 'Опубликовать'}
           </button>
@@ -287,7 +292,13 @@ export function StoriesPage() {
                     </div>
                   ))}
                 </div>
-                <MediaAttach files={editFiles} onChange={setEditFiles} emptyLabel="Добавить фото или видео" />
+                <MediaAttach
+                  files={editFiles}
+                  onChange={setEditFiles}
+                  emptyLabel="Добавить фото или видео"
+                  uploading={busy}
+                  uploadingLabel={editFiles.length > 0 ? 'Загружаю фото…' : 'Сохраняю…'}
+                />
                 <div className="story-modal-foot">
                   <button className="btn teal" type="submit" disabled={busy}>
                     {busy ? 'Сохраняю…' : 'Сохранить'}

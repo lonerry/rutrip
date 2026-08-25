@@ -4,6 +4,7 @@ import { api } from '../api'
 import type { Photo, Place } from '../types'
 import { AuthMedia, isVideo } from './AuthPhoto'
 import { MediaLightbox, MediaThumb } from './MediaLightbox'
+import { UploadOverlay } from './UploadOverlay'
 
 export function PlacePopup({
   place,
@@ -77,13 +78,15 @@ export function PlacePopup({
   if (editing && !readOnly) {
     return (
       <form className="place-card" onSubmit={save} onClick={(event) => event.stopPropagation()}>
+        <UploadOverlay show={busy} label={file ? 'Загружаю фото…' : 'Сохраняю…'} />
         <PreviewSlot preview={preview} file={file} alt={place.title} />
         <label className="place-card-file">
-          {file ? 'Фото выбрано' : preview ? 'Заменить фото' : 'Добавить фото'}
+          {busy ? 'Загружаю…' : file ? 'Фото выбрано' : preview ? 'Заменить фото' : 'Добавить фото'}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
             hidden
+            disabled={busy}
             onChange={(event) => setFile(event.target.files?.[0])}
           />
         </label>
@@ -107,7 +110,7 @@ export function PlacePopup({
         <p className="muted" style={{ margin: '2px 0 0', fontSize: 10 }}>{description.length}/500</p>
         <div className="row" style={{ marginTop: 6, gap: 6 }}>
           <button className="btn teal" type="submit" disabled={busy} style={{ padding: '6px 12px', fontSize: 13 }}>
-            Сохранить
+            {busy ? (file ? 'Загружаю…' : 'Сохраняю…') : 'Сохранить'}
           </button>
           <button className="btn ghost" type="button" disabled={busy} onClick={() => setEditing(false)} style={{ padding: '6px 10px' }}>
             Отмена
@@ -128,8 +131,9 @@ export function PlacePopup({
         />
       ) : readOnly ? null : (
         <label className="place-card-add">
+          <UploadOverlay show={busy} label="Загружаю…" compact />
           <ImagePlus size={16} />
-          Добавить фото
+          {busy ? 'Загружаю…' : 'Добавить фото'}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"

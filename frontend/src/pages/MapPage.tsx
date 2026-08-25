@@ -7,10 +7,24 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { RegionSheet } from '../components/RegionSheet'
 import { PlacePopup } from '../components/PlacePopup'
-import { regionCodeFromFeature } from '../geo'
+import { MapSearch } from '../components/MapSearch'
+import { UploadOverlay } from '../components/UploadOverlay'
+import { regionCodeAtPoint, regionCodeFromFeature } from '../geo'
 import { lookupHere, type HereItem } from '../here'
 import { normalizeMapColor, strokeFromFill } from '../mapColor'
-import type { Photo, Place, Region, Story } from '../types'
+import type { GeoHit, Photo, Place, Region, Story } from '../types'
+
+const draftIcon = L.divIcon({
+  className: 'map-pin-icon',
+  iconSize: [20, 26],
+  iconAnchor: [10, 25],
+  popupAnchor: [0, -22],
+  html: `<svg width="20" height="26" viewBox="0 0 20 26" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <ellipse cx="10" cy="24.6" rx="3.4" ry="1.1" fill="rgba(15,23,42,.28)"/>
+    <path d="M10 1.2c-4.6 0-8.3 3.6-8.3 8.1 0 6.2 8.3 14.4 8.3 14.4s8.3-8.2 8.3-14.4C18.3 4.8 14.6 1.2 10 1.2z" fill="#0f766e"/>
+    <circle cx="10" cy="9.1" r="3.05" fill="#fff"/>
+  </svg>`,
+})
 
 const placeIcon = L.divIcon({
   className: 'map-pin-icon',
@@ -183,6 +197,8 @@ function HereBalloon({
   loading,
   items,
   address,
+  canAdd,
+  onAdd,
   onClose,
 }: {
   lat: number
@@ -190,6 +206,8 @@ function HereBalloon({
   loading: boolean
   items: HereItem[]
   address?: string
+  canAdd?: boolean
+  onAdd?: () => void
   onClose: () => void
 }) {
   const map = useMap()
@@ -250,6 +268,11 @@ function HereBalloon({
           )}
         </>
       )}
+      {canAdd && onAdd && (
+        <button className="btn teal here-add" type="button" onClick={onAdd}>
+          Добавить точку здесь
+        </button>
+      )}
       <a
         className="here-yandex"
         href={`https://yandex.ru/maps/?ll=${lng},${lat}&z=17&pt=${lng},${lat}&l=map`}
@@ -261,6 +284,41 @@ function HereBalloon({
     </div>,
     host,
   )
+}
+
+function FlyToTarget({
+  target,
+}: {
+  target?: { lat: number; lng: number; bbox?: number[] | null; key: number }
+}) {
+  const map = useMap()
+  useEffect(() => {
+    if (!target) return
+    const bbox = target.bbox
+    if (bbox && bbox.length === 4) {
+      const [south, north, west, east] = bbox
+      const bounds = L.latLngBounds([south, west], [north, east])
+      if (bounds.isValid()) {
+        const span = Math.max(Math.abs(north - south), Math.abs(east - west))
+        const maxZoom = span > 8 ? 6 : span > 2 ? 9 : span > 0.35 ? 12 : 14
+        map.flyToBounds(bounds.pad(0.18), { duration: 0.8, maxZoom, padding: [40, 40] })
+        return
+      }
+    }
+    map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 13), { duration: 0.8 })
+  }, [map, target?.key])
+  return null
+}
+
+function MapCenter({ onChange }: { onChange: (lat: number, lng: number) => void }) {
+  const map = useMap()
+  useMapEvents({
+    moveend() {
+      const center = map.getCenter()
+      onChange(center.lat, center.lng)
+    },
+  })
+  return null
 }
 
 function FlyToPlace({ place }: { place?: Place }) {
@@ -436,14 +494,31 @@ export function MapPage() {
   const [selectedCode, setSelectedCode] = useState<string>()
   const [error, setError] = useState('')
   const [addingPlace, setAddingPlace] = useState(false)
+  const [savingPlace, setSavingPlace] = useState(false)
   const addingPlaceRef = useRef(false)
   addingPlaceRef.current = addingPlace
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
+  const geoRef = useRef(geo)
+  geoRef.current = geo
+  const regionsRef = useRef(regions)
+  regionsRef.current = regions
+  const addLock = useRef(0)
   const clickTimer = useRef<number>(0)
-  const [here, setHere] = useState<{ lat: number; lng: number; loading: boolean; items: HereItem[]; address?: string } | null>(null)
+  const [here, setHere] = useState<{
+    lat: number
+    lng: number
+    loading: boolean
+    items: HereItem[]
+    address?: string
+    regionCode?: string
+  } | null>(null)
   const [formPos, setFormPos] = useState<{ left: number; top: number } | null>(null)
   const formDrag = useRef<{ grabX: number; grabY: number; parentLeft: number; parentTop: number } | null>(null)
   const [openPlaceId, setOpenPlaceId] = useState<string>()
   const [draft, setDraft] = useState({ title: '', description: '', lat: 0, lng: 0, file: undefined as File | undefined })
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>()
+  const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number; bbox?: number[] | null; key: number }>()
 
   async function reload() {
     if (friendId) {
@@ -491,23 +566,63 @@ export function MapPage() {
   const selected = selectedCode ? byCode.get(selectedCode) : undefined
   const openPlace = openPlaceId ? places.find((place) => place.id === openPlaceId) : undefined
 
-  function inspectPoint(lat: number, lng: number, zoom = 16) {
+  function inspectPoint(lat: number, lng: number, zoom = 16, regionCode?: string) {
     setOpenPlaceId(undefined)
     setSelectedCode(undefined)
-    setHere({ lat, lng, loading: true, items: [], address: undefined })
+    setHere({ lat, lng, loading: true, items: [], address: undefined, regionCode })
     lookupHere(lat, lng, zoom)
       .then((result) => {
         setHere((current) =>
           current && current.lat === lat && current.lng === lng
-            ? { lat, lng, loading: false, items: result.items, address: result.address }
+            ? { lat, lng, loading: false, items: result.items, address: result.address, regionCode }
             : current,
         )
       })
       .catch(() => {
         setHere((current) =>
-          current && current.lat === lat && current.lng === lng ? { lat, lng, loading: false, items: [] } : current,
+          current && current.lat === lat && current.lng === lng
+            ? { lat, lng, loading: false, items: [], regionCode }
+            : current,
         )
       })
+  }
+
+  function startAddAt(lat: number, lng: number, title?: string, regionCode?: string) {
+    const now = Date.now()
+    if (now - addLock.current < 120) {
+      setDraft((current) => ({
+        ...current,
+        lat,
+        lng,
+        ...(title && !current.title ? { title: title.slice(0, 25) } : {}),
+      }))
+      return
+    }
+    addLock.current = now
+    setOpenPlaceId(undefined)
+    setHere(null)
+    setFormPos(null)
+    const code = regionCode ?? regionCodeAtPoint(lat, lng, geoRef.current, regionsRef.current)
+    if (code) setSelectedCode(code)
+    setDraft({
+      title: (title ?? '').slice(0, 25),
+      description: '',
+      lat,
+      lng,
+      file: undefined,
+    })
+    setAddingPlace(true)
+    if (title) return
+    lookupHere(lat, lng, 16)
+      .then((result) => {
+        const name = result.items[0]?.name
+        if (!name) return
+        setDraft((current) => {
+          if (current.lat !== lat || current.lng !== lng || current.title) return current
+          return { ...current, title: name.slice(0, 25) }
+        })
+      })
+      .catch(() => undefined)
   }
 
   function styleFor(feature?: GeoFeature) {
@@ -528,13 +643,16 @@ export function MapPage() {
   async function savePlace(event: FormEvent) {
     event.preventDefault()
     setError('')
+    setSavingPlace(true)
     try {
+      const code = selectedCode ?? regionCodeAtPoint(draft.lat, draft.lng, geo, regions)
+      const regionId = (code ? byCode.get(code)?.id : undefined) ?? selected?.id ?? null
       const created = await api.createPlace({
         title: draft.title,
         description: draft.description,
         lat: draft.lat,
         lng: draft.lng,
-        regionId: selected?.id ?? null,
+        regionId,
       })
       if (draft.file) await api.uploadMedia([draft.file], { placeId: created.id })
       setAddingPlace(false)
@@ -542,6 +660,8 @@ export function MapPage() {
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не получилось сохранить точку')
+    } finally {
+      setSavingPlace(false)
     }
   }
 
@@ -564,6 +684,8 @@ export function MapPage() {
       >
         <ZoomBar />
         <FastTrackpadZoom />
+        <MapCenter onChange={(lat, lng) => setMapCenter({ lat, lng })} />
+        <FlyToTarget target={flyTarget} />
         <TileLayer
           noWrap
           bounds={RUSSIA_BOUNDS}
@@ -626,7 +748,8 @@ export function MapPage() {
                     return
                   }
                   clickTimer.current = window.setTimeout(() => {
-                    inspectPoint(event.latlng.lat, event.latlng.lng, zoom)
+                    if (readOnlyRef.current) inspectPoint(event.latlng.lat, event.latlng.lng, zoom, code ?? undefined)
+                    else startAddAt(event.latlng.lat, event.latlng.lng, undefined, code ?? undefined)
                   }, 280)
                 },
                 dblclick: (event) => {
@@ -651,6 +774,9 @@ export function MapPage() {
             }}
           />
         ))}
+        {addingPlace && draft.lat ? (
+          <Marker position={[draft.lat, draft.lng]} icon={draftIcon} interactive={false} />
+        ) : null}
         <FlyToPlace place={openPlace} />
         {openPlace && (
           <PlaceBalloon
@@ -669,6 +795,8 @@ export function MapPage() {
             loading={here.loading}
             items={here.items}
             address={here.address}
+            canAdd={!readOnly}
+            onAdd={() => startAddAt(here.lat, here.lng, here.items[0]?.name, here.regionCode)}
             onClose={() => setHere(null)}
           />
         )}
@@ -677,10 +805,30 @@ export function MapPage() {
           onPick={(lat, lng) => setDraft((current) => ({ ...current, lat, lng }))}
           onMapClick={(lat, lng, zoom) => {
             setOpenPlaceId(undefined)
-            if (!addingPlace && zoom >= OBJECT_ZOOM) inspectPoint(lat, lng, zoom)
+            if (zoom < OBJECT_ZOOM) return
+            if (readOnly) inspectPoint(lat, lng, zoom)
+            else startAddAt(lat, lng)
           }}
         />
       </MapContainer>
+
+      {!addingPlace && (
+        <MapSearch
+          places={places}
+          near={mapCenter}
+          onPickHit={(hit: GeoHit) => {
+            setFlyTarget({ lat: hit.lat, lng: hit.lng, bbox: hit.bbox, key: Date.now() })
+            if (readOnly) inspectPoint(hit.lat, hit.lng, 16)
+            else startAddAt(hit.lat, hit.lng, hit.name)
+          }}
+          onPickPlace={(place) => {
+            setHere(null)
+            setAddingPlace(false)
+            setSelectedCode(undefined)
+            setOpenPlaceId(place.id)
+          }}
+        />
+      )}
 
       {selected && !addingPlace && (
         <RegionSheet
@@ -711,6 +859,7 @@ export function MapPage() {
           className="place-form"
           style={formPos ? { left: formPos.left, top: formPos.top, right: 'auto', bottom: 'auto' } : undefined}
         >
+          <UploadOverlay show={savingPlace} label={draft.file ? 'Загружаю фото…' : 'Сохраняю…'} />
           <div className="place-form-head">
           <div
             className="place-form-drag"
@@ -745,7 +894,10 @@ export function MapPage() {
           >
             {draft.lat ? 'Точка выбрана' : 'Кликни точку на карте'}
           </div>
-          <button className="icon-btn" type="button" onClick={() => setAddingPlace(false)} aria-label="Отмена">
+          <button className="icon-btn" type="button" disabled={savingPlace} onClick={() => {
+            setAddingPlace(false)
+            setDraft({ title: '', description: '', lat: 0, lng: 0, file: undefined })
+          }} aria-label="Отмена">
             ✕
           </button>
           </div>
@@ -770,16 +922,19 @@ export function MapPage() {
             onChange={(e) => setDraft({ ...draft, description: e.target.value.slice(0, 500) })}
           />
           <div className="place-form-row">
-            <label className={`place-form-photo${draft.file ? ' has-file' : ''}`}>
-              {draft.file ? '✓ фото' : 'Фото'}
+            <label className={`place-form-photo${draft.file ? ' has-file' : ''}${savingPlace ? ' disabled' : ''}`}>
+              {savingPlace ? '…' : draft.file ? '✓ фото' : 'Фото'}
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 hidden
+                disabled={savingPlace}
                 onChange={(e) => setDraft({ ...draft, file: e.target.files?.[0] })}
               />
             </label>
-            <button className="btn teal" type="submit" disabled={!draft.lat}>Сохранить</button>
+            <button className="btn teal" type="submit" disabled={!draft.lat || savingPlace}>
+              {savingPlace ? (draft.file ? 'Загружаю…' : 'Сохраняю…') : 'Сохранить'}
+            </button>
           </div>
         </form>
       )}

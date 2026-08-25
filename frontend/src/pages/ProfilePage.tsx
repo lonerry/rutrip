@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { api } from '../api'
 import { UserAvatar } from '../components/UserAvatar'
+import { UploadOverlay } from '../components/UploadOverlay'
 import type { Place, Region, Story } from '../types'
 
 type ProfileList = 'regions' | 'places' | 'stories'
@@ -19,6 +20,7 @@ export function ProfilePage() {
   const [name, setName] = useState(user?.displayName ?? '')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [listQuery, setListQuery] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -93,26 +95,26 @@ export function ProfilePage() {
 
   async function onPhoto(file?: File) {
     if (!file) return
-    setBusy(true)
+    setPhotoBusy(true)
     setError('')
     try {
       applyUser(await api.uploadAvatar(file))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не получилось загрузить фото')
     } finally {
-      setBusy(false)
+      setPhotoBusy(false)
     }
   }
 
   async function removePhoto() {
-    setBusy(true)
+    setPhotoBusy(true)
     setError('')
     try {
       applyUser(await api.deleteAvatar())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не получилось удалить фото')
     } finally {
-      setBusy(false)
+      setPhotoBusy(false)
     }
   }
 
@@ -123,16 +125,17 @@ export function ProfilePage() {
       <p className="kicker">Профиль</p>
       <div className="profile-head">
         <button
-          className="profile-avatar"
+          className={`profile-avatar${photoBusy ? ' is-uploading' : ''}`}
           type="button"
-          disabled={busy}
+          disabled={busy || photoBusy}
           onClick={() => fileRef.current?.click()}
           aria-label="Сменить фото"
         >
           <UserAvatar name={user.displayName} avatarUrl={user.avatarUrl} className="profile-avatar-img" />
+          <UploadOverlay show={photoBusy} label="Загружаю фото…" compact />
           <span className="profile-avatar-edit">
             <Camera size={14} strokeWidth={2.2} />
-            фото
+            {photoBusy ? '…' : 'фото'}
           </span>
         </button>
         <input
@@ -160,7 +163,7 @@ export function ProfilePage() {
                 value={name}
                 maxLength={100}
                 autoFocus
-                disabled={busy}
+                disabled={busy || photoBusy}
                 onChange={(event) => setName(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') {
@@ -169,7 +172,7 @@ export function ProfilePage() {
                   }
                 }}
               />
-              <button className="btn" type="submit" disabled={busy || name.trim().length < 2}>
+              <button className="btn" type="submit" disabled={busy || photoBusy || name.trim().length < 2}>
                 Сохранить
               </button>
             </form>
@@ -183,7 +186,7 @@ export function ProfilePage() {
           )}
           <p className="muted">{user.email}</p>
           {user.avatarUrl && (
-            <button className="btn ghost" type="button" disabled={busy} onClick={() => void removePhoto()}>
+            <button className="btn ghost" type="button" disabled={busy || photoBusy} onClick={() => void removePhoto()}>
               Убрать фото
             </button>
           )}
