@@ -86,7 +86,7 @@ function ClickToAdd({
       else onMapClick?.(event.latlng.lat, event.latlng.lng, map.getZoom())
     },
     contextmenu(event) {
-      L.DomEvent.preventDefault(event)
+      L.DomEvent.preventDefault(event.originalEvent)
       if (enabled) return
       onDropPin?.(event.latlng.lat, event.latlng.lng)
     },
@@ -822,7 +822,7 @@ export function MapPage() {
                   if (code) setSelectedCode(code)
                 },
                 contextmenu: (event) => {
-                  L.DomEvent.preventDefault(event)
+                  L.DomEvent.preventDefault(event.originalEvent)
                   L.DomEvent.stop(event.originalEvent)
                   if (addingPlaceRef.current || readOnlyRef.current) return
                   dropCoordPin(event.latlng.lat, event.latlng.lng, code ?? undefined)
