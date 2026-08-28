@@ -30,21 +30,11 @@ public class MailService {
         this.enabled = this.mailSender != null && host != null && !host.isBlank();
     }
 
-    public void sendPasswordReset(String to, String displayName, String link) {
-        String name = displayName == null ? "" : displayName.trim();
-        String hello = name.isBlank() ? "Привет." : "Привет, " + name + ".";
-        String plain = """
-                %s
-
-                Кто-то попросил новый пароль в Rutrip. Если это ты, открой ссылку в течение часа:
-
-                %s
-
-                Если это была не ты, просто удали письмо.
-                """.formatted(hello, link);
+    public void sendPasswordReset(String to, String code) {
+        String plain = "Code: " + code + "\n";
 
         if (!enabled) {
-            log.info("Письмо сброса пароля для {} (SMTP не настроен)", to);
+            log.info("Password reset mail skipped (SMTP off) for {}", to);
             return;
         }
 
@@ -53,12 +43,12 @@ public class MailService {
             MimeMessageHelper helper = new MimeMessageHelper(mime, false, StandardCharsets.UTF_8.name());
             helper.setFrom(fromAddress());
             helper.setTo(to);
-            helper.setSubject("Ссылка для Rutrip");
+            helper.setSubject("Rutrip");
             helper.setText(plain, false);
             mailSender.send(mime);
-            log.info("Письмо сброса пароля отправлено на {}", to);
+            log.info("Password reset mail sent to {}", to);
         } catch (Exception ex) {
-            log.warn("Не отправилось письмо на {}: {}", to, rootMessage(ex));
+            log.warn("Password reset mail failed for {}: {}", to, rootMessage(ex));
         }
     }
 

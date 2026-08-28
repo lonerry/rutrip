@@ -31,20 +31,20 @@ export function ForgotPasswordPage() {
         {done ? (
           <>
             <p className="success">{done}</p>
-            <p className="muted">Проверь почту и открой ссылку из письма — там можно задать новый пароль.</p>
+            <p className="muted">В письме будет строка Code: 123456. Код действует час.</p>
             <p className="muted" style={{ textAlign: 'center', marginTop: 16 }}>
-              <Link to="/login">Вернуться ко входу</Link>
+              <Link to="/reset-password">Ввести код</Link>
             </p>
           </>
         ) : (
           <>
-            <p className="muted">Напишем на email ссылку. Она действует час.</p>
+            <p className="muted">Пришлём на email короткий код. Он действует час.</p>
             <label className="field">
               Email
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={busy} />
             </label>
             <button className="btn full" style={{ marginTop: 20 }} type="submit" disabled={busy}>
-              {busy ? 'Отправляю…' : 'Отправить ссылку'}
+              {busy ? 'Отправляю…' : 'Отправить код'}
             </button>
             <p className="muted" style={{ textAlign: 'center', marginTop: 16 }}>
               Вспомнил пароль? <Link to="/login">Войти</Link>

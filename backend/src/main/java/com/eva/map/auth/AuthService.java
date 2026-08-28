@@ -49,7 +49,6 @@ public class AuthService {
     private final JwtService jwtService;
     private final MailService mailService;
     private final Path uploadDir;
-    private final String publicUrl;
     private final SecureRandom random = new SecureRandom();
 
     public AuthService(
@@ -58,8 +57,7 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             MailService mailService,
-            @Value("${app.upload.dir}") String uploadDir,
-            @Value("${app.public-url}") String publicUrl
+            @Value("${app.upload.dir}") String uploadDir
     ) throws IOException {
         this.userRepository = userRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
@@ -67,7 +65,6 @@ public class AuthService {
         this.jwtService = jwtService;
         this.mailService = mailService;
         this.uploadDir = Path.of(uploadDir).toAbsolutePath().normalize();
-        this.publicUrl = publicUrl.endsWith("/") ? publicUrl.substring(0, publicUrl.length() - 1) : publicUrl;
         Files.createDirectories(this.uploadDir);
     }
 
@@ -100,29 +97,30 @@ public class AuthService {
         String email = request.email().trim();
         userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
             passwordResetTokenRepository.deleteByUserId(user.getId());
-            String token = newToken();
+            String code = newCode();
             PasswordResetToken row = new PasswordResetToken();
             row.setUser(user);
-            row.setTokenHash(hashToken(token));
+            row.setTokenHash(hashToken(code));
             row.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
             passwordResetTokenRepository.save(row);
-            mailService.sendPasswordReset(
-                    user.getEmail(),
-                    user.getDisplayName(),
-                    publicUrl + "/reset-password?token=" + token
-            );
+            mailService.sendPasswordReset(user.getEmail(), code);
         });
-        return new MessageResponse("Если такой email есть в Rutrip, отправим ссылку для нового пароля.");
+        return new MessageResponse("Если такой email есть в Rutrip, отправим код для нового пароля.");
     }
 
     @Transactional
     public AuthResponse resetPassword(ResetPasswordRequest request) {
-        PasswordResetToken row = passwordResetTokenRepository.findByTokenHash(hashToken(request.token().trim()))
-                .orElseThrow(() -> new BadRequestException("Ссылка устарела или уже использована. Запроси новую."));
+        String code = request.token().trim();
+        PasswordResetToken row = passwordResetTokenRepository.findByTokenHash(hashToken(code))
+                .orElseThrow(() -> new BadRequestException("Код неверный или уже использован. Запроси новый."));
         if (row.getUsedAt() != null || row.getExpiresAt().isBefore(Instant.now())) {
-            throw new BadRequestException("Ссылка устарела или уже использована. Запроси новую.");
+            throw new BadRequestException("Код неверный или уже использован. Запроси новый.");
         }
         User user = row.getUser();
+        String email = request.email() == null ? "" : request.email().trim();
+        if (email.isBlank() || !email.equalsIgnoreCase(user.getEmail())) {
+            throw new BadRequestException("Код неверный или уже использован. Запроси новый.");
+        }
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         passwordResetTokenRepository.deleteByUserId(user.getId());
         return toAuthResponse(user);
@@ -267,10 +265,8 @@ public class AuthService {
                 .orElse(".jpg");
     }
 
-    private String newToken() {
-        byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        return HexFormat.of().formatHex(bytes);
+    private String newCode() {
+        return "%06d".formatted(random.nextInt(1_000_000));
     }
 
     private String hashToken(String token) {

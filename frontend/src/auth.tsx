@@ -23,7 +23,7 @@ type AuthContextValue = {
   ready: boolean
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
-  resetPassword: (token: string, password: string) => Promise<void>
+  resetPassword: (email: string, token: string, password: string) => Promise<void>
   logout: () => void
   applyUser: (user: User) => void
 }
@@ -60,8 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(response.token)
         setUser(fromAuth(response))
       },
-      async resetPassword(token, password) {
-        const response = await api.resetPassword(token, password)
+      async resetPassword(email, token, password) {
+        const response = await api.resetPassword(email, token, password)
         setToken(response.token)
         setUser(fromAuth(response))
       },
