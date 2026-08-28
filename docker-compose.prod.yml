@@ -42,7 +42,7 @@ services:
       MAIL_SMTP_SSL: ${MAIL_SMTP_SSL:-false}
       YANDEX_MAPS_KEY: ${YANDEX_MAPS_KEY:-${VITE_YANDEX_MAPS_KEY:-}}
       MAPBOX_TOKEN: ${MAPBOX_TOKEN:-${VITE_MAPBOX_TOKEN:-}}
-      JAVA_OPTS: "-XX:MaxRAMPercentage=45 -XX:+UseG1GC -XX:TieredStopAtLevel=1 -Dspring.jmx.enabled=false"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=45 -XX:+UseG1GC -XX:TieredStopAtLevel=1 -Dspring.jmx.enabled=false -Djava.net.preferIPv4Stack=true"
     volumes:
       - uploads:/data/uploads
     depends_on:

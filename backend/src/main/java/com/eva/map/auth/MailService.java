@@ -70,6 +70,7 @@ public class MailService {
             helper.setSubject("Сброс пароля в Rutrip");
             helper.setText(plain, html);
             mailSender.send(mime);
+            log.info("Письмо сброса пароля отправлено на {}", to);
         } catch (Exception ex) {
             log.warn("Не отправилось письмо на {}, ссылка: {}", to, link, ex);
         }

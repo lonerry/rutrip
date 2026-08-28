@@ -28,6 +28,7 @@ spring:
       mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
       mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:false}
       mail.smtp.ssl.enable: ${MAIL_SMTP_SSL:false}
+      mail.smtp.ssl.trust: smtp.yandex.ru
       mail.smtp.connectiontimeout: 15000
       mail.smtp.timeout: 15000
       mail.smtp.writetimeout: 15000
