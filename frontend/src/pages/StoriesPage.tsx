@@ -24,6 +24,7 @@ export function StoriesPage() {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [published, setPublished] = useState(false)
+  const [ready, setReady] = useState(false)
   const [params, setParams] = useSearchParams()
 
   async function reload() {
@@ -35,6 +36,7 @@ export function StoriesPage() {
     setStories(nextStories)
     setPhotos(nextPhotos)
     setRegions(nextRegions)
+    setReady(true)
   }
 
   useEffect(() => {
@@ -210,7 +212,15 @@ export function StoriesPage() {
                 <article
                   key={story.id}
                   className={`story-card${openId === story.id ? ' open' : ''}`}
+                  tabIndex={0}
+                  role="button"
                   onClick={() => openStory(story.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      openStory(story.id)
+                    }
+                  }}
                 >
                   <div className={`cover${cover ? '' : ' story-cover-empty'}`}>
                     {cover ? (
@@ -232,7 +242,7 @@ export function StoriesPage() {
               )
             })}
           </div>
-          {stories.length === 0 && <p className="muted" style={{ marginTop: 16 }}>Пока нет ни одной истории.</p>}
+          {stories.length === 0 && <p className="muted" style={{ marginTop: 16 }}>{ready ? 'Пока нет ни одной истории.' : 'Загрузка…'}</p>}
           {stories.length > 0 && filtered.length === 0 && (
             <p className="muted" style={{ marginTop: 16 }}>Ничего не нашла по запросу.</p>
           )}

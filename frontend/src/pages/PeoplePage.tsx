@@ -11,6 +11,7 @@ export function PeoplePage() {
   const [incoming, setIncoming] = useState<Person[]>([])
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState<string>()
+  const [ready, setReady] = useState(false)
 
   async function reload(search = query) {
     const [nextPeople, nextFriends, nextIncoming] = await Promise.all([
@@ -21,6 +22,7 @@ export function PeoplePage() {
     setPeople(nextPeople)
     setFriends(nextFriends)
     setIncoming(nextIncoming)
+    setReady(true)
   }
 
   useEffect(() => {
@@ -45,10 +47,11 @@ export function PeoplePage() {
 
   return (
     <section className="wrap page" style={{ maxWidth: 760 }}>
-      <p className="kicker">People</p>
+      <p className="kicker">Друзья</p>
       <h1>Люди</h1>
       <p className="muted">Найди человека и добавь в друзья — тогда откроется его карта, фото и истории.</p>
       {error && <p className="error">{error}</p>}
+      {!ready && !error && <p className="muted" style={{ marginTop: 20 }}>Загрузка…</p>}
 
       <input
         className="input"
@@ -73,7 +76,7 @@ export function PeoplePage() {
         </div>
       )}
 
-      {friends.length > 0 && (
+      {ready && friends.length > 0 && (
         <div style={{ marginTop: 28 }}>
           <h2>Друзья</h2>
           {friends.map((person) => (
@@ -86,24 +89,32 @@ export function PeoplePage() {
           ))}
         </div>
       )}
+      {ready && friends.length === 0 && (
+        <div style={{ marginTop: 28 }}>
+          <h2>Друзья</h2>
+          <p className="muted">Пока никого. Найди человека ниже и отправь заявку.</p>
+        </div>
+      )}
 
-      <div style={{ marginTop: 28 }}>
-        <h2>{query ? 'Результаты' : 'Все'}</h2>
-        {people.length === 0 ? (
-          <p className="muted">Никого не нашлось. Пусть друг тоже зарегистрируется.</p>
-        ) : (
-          people.map((person) => (
-            <PersonRow
-              key={person.id}
-              person={person}
-              busy={busyId === person.id}
-              onAdd={() => act(person.id, () => api.requestFriend(person.id))}
-              onAccept={() => act(person.id, () => api.acceptFriend(person.id))}
-              onRemove={() => act(person.id, () => api.removeFriend(person.id))}
-            />
-          ))
-        )}
-      </div>
+      {ready && (
+        <div style={{ marginTop: 28 }}>
+          <h2>{query ? 'Результаты' : 'Все'}</h2>
+          {people.length === 0 ? (
+            <p className="muted">Никого не нашлось. Пусть друг тоже зарегистрируется.</p>
+          ) : (
+            people.map((person) => (
+              <PersonRow
+                key={person.id}
+                person={person}
+                busy={busyId === person.id}
+                onAdd={() => act(person.id, () => api.requestFriend(person.id))}
+                onAccept={() => act(person.id, () => api.acceptFriend(person.id))}
+                onRemove={() => act(person.id, () => api.removeFriend(person.id))}
+              />
+            ))
+          )}
+        </div>
+      )}
     </section>
   )
 }
@@ -152,22 +163,22 @@ function PersonRow({
         )}
         {person.relation === 'none' && onAdd && (
           <button className="btn teal" type="button" disabled={busy} onClick={onAdd}>
-            Добавить
+            {busy ? 'Добавляю…' : 'Добавить'}
           </button>
         )}
         {person.relation === 'outgoing' && (
           <button className="btn light" type="button" disabled={busy} onClick={onRemove}>
-            Отменить
+            {busy ? 'Отменяю…' : 'Отменить'}
           </button>
         )}
         {person.relation === 'incoming' && (
           <>
             <button className="btn teal" type="button" disabled={busy} onClick={onAccept}>
-              Принять
+              {busy ? 'Принимаю…' : 'Принять'}
             </button>
             {onDecline && (
               <button className="btn ghost" type="button" disabled={busy} onClick={onDecline}>
-                Отклонить
+                {busy ? 'Отклоняю…' : 'Отклонить'}
               </button>
             )}
           </>

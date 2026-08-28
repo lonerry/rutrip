@@ -5,6 +5,7 @@ export type HereItem = {
   description?: string
   kind?: string
   distance?: number
+  notable?: boolean
 }
 
 export type HereLookup = {
@@ -89,6 +90,22 @@ const KIND_RU: Record<string, string> = {
   library: 'библиотека',
   townhall: 'администрация',
   government: 'учреждение',
+  locality: 'населённый пункт',
+  province: 'регион',
+  area: 'район',
+  hydro: 'водоём',
+  vegetation: 'природа',
+  airport: 'аэропорт',
+  railway: 'железная дорога',
+  metro: 'метро',
+  street: 'улица',
+  district: 'район',
+  country: 'страна',
+  poi: 'место',
+  place: 'населённый пункт',
+  neighborhood: 'район',
+  address: 'адрес',
+  region: 'регион',
 }
 
 export function ruKind(kind?: string | null) {
@@ -98,7 +115,9 @@ export function ruKind(kind?: string | null) {
 
 export async function lookupHere(lat: number, lng: number, zoom = 16): Promise<HereLookup> {
   const [pois, geo] = await Promise.all([zoom >= 13 ? overpassNearby(lat, lng, zoom) : Promise.resolve([]), nominatim(lat, lng)])
-  const items = unique([...pois, ...geo.items]).slice(0, 5)
+  const items = unique([...pois, ...geo.items])
+    .sort((a, b) => Number(Boolean(b.notable)) - Number(Boolean(a.notable)))
+    .slice(0, 5)
   const address = geo.address && geo.address !== items[0]?.name ? geo.address : undefined
   return { items, address }
 }
@@ -154,7 +173,14 @@ function toPoi(element: OsmElement, lat: number, lng: number): ScoredPoi | null 
   const distance = poiLat != null && poiLng != null ? meters(lat, lng, poiLat, poiLng) : undefined
   const kind = kindLabel(tags)
   const score = typeScore(tags) - (distance ?? 80) / 10
-  return { name, kind, distance, description: addressFromTags(tags), score }
+  return {
+    name,
+    kind,
+    distance,
+    description: poiBlurb(tags),
+    notable: typeScore(tags) >= 70,
+    score,
+  }
 }
 
 function isUseful(tags: Record<string, string>) {
@@ -178,6 +204,59 @@ function addressFromTags(tags: Record<string, string>) {
     return `${tags['addr:street']}, ${tags['addr:housenumber']}`
   }
   return undefined
+}
+
+function poiBlurb(tags: Record<string, string>) {
+  const text = tags['description:ru'] || tags.description || tags['inscription:ru']
+  if (text) return text.trim()
+  return addressFromTags(tags)
+}
+
+const NOTABLE_KINDS = new Set([
+  'attraction',
+  'museum',
+  'viewpoint',
+  'artwork',
+  'memorial',
+  'monument',
+  'park',
+  'garden',
+  'peak',
+  'volcano',
+  'island',
+  'lake',
+  'reservoir',
+  'water',
+  'river',
+  'hotel',
+  'hostel',
+  'guest_house',
+  'cafe',
+  'restaurant',
+  'bar',
+  'pub',
+  'church',
+  'cathedral',
+  'mosque',
+  'synagogue',
+  'place_of_worship',
+  'theatre',
+  'cinema',
+  'university',
+  'townhall',
+  'city',
+  'town',
+  'village',
+  'hamlet',
+])
+
+function isNotableKind(kind?: string | null) {
+  if (!kind) return false
+  return NOTABLE_KINDS.has(kind) || Boolean(KIND_RU[kind] && !['улица', 'здание', 'дом', 'жилой дом'].includes(KIND_RU[kind]))
+}
+
+export function isMapObject(item?: HereItem) {
+  return Boolean(item?.notable)
 }
 
 function typeScore(tags: Record<string, string>) {
@@ -213,7 +292,12 @@ async function nominatim(lat: number, lng: number): Promise<HereLookup> {
     const kind = data.kind ? KIND_RU[data.kind] || data.kind.replace(/_/g, ' ') : undefined
     const items: HereItem[] = []
     if (named && !looksLikeCoords(named)) {
-      items.push({ name: named, kind, description: address !== named ? address : undefined })
+      items.push({
+        name: named,
+        kind,
+        description: address !== named ? address : undefined,
+        notable: isNotableKind(data.kind),
+      })
     }
     return { items, address: address && address !== named ? address : undefined }
   } catch {

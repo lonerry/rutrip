@@ -30,7 +30,7 @@ export function ForgotPasswordPage() {
         {error && <p className="error">{error}</p>}
         {done ? (
           <>
-            <p className="muted">{done}</p>
+            <p className="success">{done}</p>
             <p className="muted">Проверь почту и открой ссылку из письма — там можно задать новый пароль.</p>
             <p className="muted" style={{ textAlign: 'center', marginTop: 16 }}>
               <Link to="/login">Вернуться ко входу</Link>
@@ -41,10 +41,10 @@ export function ForgotPasswordPage() {
             <p className="muted">Напишем на email ссылку. Она действует час.</p>
             <label className="field">
               Email
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={busy} />
             </label>
             <button className="btn full" style={{ marginTop: 20 }} type="submit" disabled={busy}>
-              Отправить ссылку
+              {busy ? 'Отправляю…' : 'Отправить ссылку'}
             </button>
             <p className="muted" style={{ textAlign: 'center', marginTop: 16 }}>
               Вспомнил пароль? <Link to="/login">Войти</Link>

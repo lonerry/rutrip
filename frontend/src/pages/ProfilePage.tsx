@@ -37,7 +37,7 @@ export function ProfilePage() {
       setRegions(nextRegions)
       setStoryItems(nextStories)
       setPlaceItems(nextPlaces)
-    })
+    }).catch((err) => setError(err instanceof Error ? err.message : 'Не получилось загрузить профиль'))
   }, [])
 
   useEffect(() => {
@@ -173,7 +173,7 @@ export function ProfilePage() {
                 }}
               />
               <button className="btn" type="submit" disabled={busy || photoBusy || name.trim().length < 2}>
-                Сохранить
+                {busy ? 'Сохраняю…' : 'Сохранить'}
               </button>
             </form>
           ) : (

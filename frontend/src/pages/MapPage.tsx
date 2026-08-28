@@ -10,7 +10,7 @@ import { PlacePopup } from '../components/PlacePopup'
 import { MapSearch } from '../components/MapSearch'
 import { UploadOverlay } from '../components/UploadOverlay'
 import { regionCodeAtPoint, regionCodeFromFeature } from '../geo'
-import { lookupHere, type HereItem } from '../here'
+import { lookupHere, isMapObject, ruKind, type HereItem } from '../here'
 import { normalizeMapColor, strokeFromFill } from '../mapColor'
 import type { GeoHit, Photo, Place, Region, Story } from '../types'
 
@@ -39,21 +39,31 @@ const placeIcon = L.divIcon({
 })
 
 const PAGE_BG = '#f8fafc'
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
 const YANDEX_KEY = import.meta.env.VITE_YANDEX_MAPS_KEY as string | undefined
+const MAPBOX_TILES = MAPBOX_TOKEN
+  ? `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=${encodeURIComponent(MAPBOX_TOKEN)}`
+  : undefined
 const YANDEX_TILES = YANDEX_KEY
   ? `https://tiles.api-maps.yandex.ru/v1/tiles/?apikey=${encodeURIComponent(YANDEX_KEY)}&lang=ru_RU&l=map&x={x}&y={y}&z={z}&scale=1&projection=web_mercator`
   : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const TILES = MAPBOX_TILES ?? YANDEX_TILES
+const TILE_ATTR = MAPBOX_TOKEN
+  ? '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  : YANDEX_KEY
+    ? '&copy; <a href="https://yandex.ru/maps">Яндекс</a>'
+    : '&copy; OpenStreetMap &copy; CARTO'
 const RUSSIA_BOUNDS: L.LatLngBoundsLiteral = [
   [40.2, 18.6],
   [82.85, 191.3],
 ]
 const WORLD_SHIELDS: L.LatLngBoundsLiteral[] = [
-  [[-85, -180], [85, 18.6]],
-  [[-85, 191.3], [85, 360]],
-  [[-85, 18.6], [40.2, 191.3]],
-  [[82.85, 18.6], [85, 191.3]],
+  [[-85, -180], [85, 19.4]],
+  [[-85, 190.5], [85, 360]],
+  [[-85, 18.6], [40.8, 191.3]],
+  [[82.45, 18.6], [85, 191.3]],
 ]
-const MASK_FILL = { stroke: false, color: PAGE_BG, fillColor: PAGE_BG, fillOpacity: 1 } as const
+const MASK_FILL = { stroke: true, color: PAGE_BG, weight: 3, fillColor: PAGE_BG, fillOpacity: 1 } as const
 const OBJECT_ZOOM = 11
 
 type GeoFeature = { properties?: { code?: string; name?: string } }
@@ -62,16 +72,23 @@ function ClickToAdd({
   enabled,
   onPick,
   onMapClick,
+  onDropPin,
 }: {
   enabled: boolean
   onPick: (lat: number, lng: number) => void
   onMapClick?: (lat: number, lng: number, zoom: number) => void
+  onDropPin?: (lat: number, lng: number) => void
 }) {
   const map = useMap()
   useMapEvents({
     click(event) {
       if (enabled) onPick(event.latlng.lat, event.latlng.lng)
       else onMapClick?.(event.latlng.lat, event.latlng.lng, map.getZoom())
+    },
+    contextmenu(event) {
+      L.DomEvent.preventDefault(event)
+      if (enabled) return
+      onDropPin?.(event.latlng.lat, event.latlng.lng)
     },
   })
   return null
@@ -223,8 +240,8 @@ function HereBalloon({
     }
   }, [map, lat, lng])
 
-  const main = items[0]
-  const rest = items.slice(1)
+  const main = items.find(isMapObject) ?? items[0]
+  const rest = items.filter((item) => item !== main && isMapObject(item))
   const showAddress = address && address !== main?.name && address !== main?.description
 
   if (!host) return null
@@ -237,11 +254,9 @@ function HereBalloon({
       <button className="place-balloon-close" type="button" aria-label="Закрыть" onClick={onClose}>
         ×
       </button>
-      {loading ? (
+      {loading && !main ? (
         <p className="muted" style={{ margin: 0, fontSize: 12 }}>Ищу, что здесь…</p>
-      ) : !main && !address ? (
-        <p className="muted" style={{ margin: 0, fontSize: 12 }}>Ничего рядом не нашла. Приблизь карту.</p>
-      ) : (
+      ) : !main ? null : (
         <>
           {main && (
             <div className="here-main">
@@ -252,6 +267,9 @@ function HereBalloon({
                     .filter(Boolean)
                     .join(' · ')}
                 </span>
+              )}
+              {main.description && main.description !== main.name && (
+                <p className="here-desc">{main.description}</p>
               )}
             </div>
           )}
@@ -268,11 +286,12 @@ function HereBalloon({
           )}
         </>
       )}
-      {canAdd && onAdd && (
+      {canAdd && onAdd && isMapObject(main) && (
         <button className="btn teal here-add" type="button" onClick={onAdd}>
-          Добавить точку здесь
+          Отметить на карте
         </button>
       )}
+      {isMapObject(main) && (
       <a
         className="here-yandex"
         href={`https://yandex.ru/maps/?ll=${lng},${lat}&z=17&pt=${lng},${lat}&l=map`}
@@ -281,6 +300,7 @@ function HereBalloon({
       >
         Открыть в Яндекс.Картах
       </a>
+      )}
     </div>,
     host,
   )
@@ -566,28 +586,70 @@ export function MapPage() {
   const selected = selectedCode ? byCode.get(selectedCode) : undefined
   const openPlace = openPlaceId ? places.find((place) => place.id === openPlaceId) : undefined
 
-  function inspectPoint(lat: number, lng: number, zoom = 16, regionCode?: string) {
+  function inspectPoint(lat: number, lng: number, zoom = 16, regionCode?: string, seed?: HereItem[]) {
     setOpenPlaceId(undefined)
     setSelectedCode(undefined)
-    setHere({ lat, lng, loading: true, items: [], address: undefined, regionCode })
+    setHere({ lat, lng, loading: true, items: seed ?? [], address: seed?.[0]?.description, regionCode })
     lookupHere(lat, lng, zoom)
       .then((result) => {
-        setHere((current) =>
-          current && current.lat === lat && current.lng === lng
-            ? { lat, lng, loading: false, items: result.items, address: result.address, regionCode }
-            : current,
-        )
+        setHere((current) => {
+          if (!current || current.lat !== lat || current.lng !== lng) return current
+          const items = [...(seed ?? []), ...result.items].filter(
+            (item, index, list) => list.findIndex((other) => other.name === item.name) === index,
+          )
+          const found = items.some(isMapObject) || (seed && seed.length > 0)
+          if (!found) return null
+          return {
+            lat,
+            lng,
+            loading: false,
+            items,
+            address: result.address,
+            regionCode,
+          }
+        })
       })
       .catch(() => {
-        setHere((current) =>
-          current && current.lat === lat && current.lng === lng
-            ? { lat, lng, loading: false, items: [], regionCode }
-            : current,
-        )
+        setHere((current) => {
+          if (!current || current.lat !== lat || current.lng !== lng) return current
+          if (seed && seed.length > 0) {
+            return { ...current, loading: false, items: seed }
+          }
+          return null
+        })
       })
   }
 
-  function startAddAt(lat: number, lng: number, title?: string, regionCode?: string) {
+  function dropCoordPin(lat: number, lng: number, regionCode?: string) {
+    const code = regionCode ?? regionCodeAtPoint(lat, lng, geoRef.current, regionsRef.current) ?? undefined
+    setOpenPlaceId(undefined)
+    setSelectedCode(undefined)
+    setAddingPlace(false)
+    setHere({
+      lat,
+      lng,
+      loading: false,
+      items: [
+        {
+          name: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          kind: 'точка',
+          description: 'Свои координаты — можно сохранить как точку.',
+          notable: true,
+        },
+      ],
+      regionCode: code,
+    })
+  }
+
+  function startDropPin() {
+    setHere(null)
+    setOpenPlaceId(undefined)
+    setFormPos(null)
+    setDraft({ title: '', description: '', lat: 0, lng: 0, file: undefined })
+    setAddingPlace(true)
+  }
+
+  function startAddAt(lat: number, lng: number, title?: string, regionCode?: string, description?: string) {
     const now = Date.now()
     if (now - addLock.current < 120) {
       setDraft((current) => ({
@@ -606,7 +668,7 @@ export function MapPage() {
     if (code) setSelectedCode(code)
     setDraft({
       title: (title ?? '').slice(0, 25),
-      description: '',
+      description: (description ?? '').slice(0, 500),
       lat,
       lng,
       file: undefined,
@@ -668,7 +730,7 @@ export function MapPage() {
   return (
     <div className="map-page">
       <MapContainer
-        key={YANDEX_KEY ? 'yandex-3857' : 'carto'}
+        key={MAPBOX_TOKEN ? 'mapbox-streets' : YANDEX_KEY ? 'yandex-3857' : 'carto'}
         center={[64, 100]}
         zoom={3}
         minZoom={3}
@@ -677,6 +739,7 @@ export function MapPage() {
         zoomDelta={1}
         wheelPxPerZoomLevel={40}
         zoomControl={false}
+        attributionControl={false}
         style={{ height: '100%', width: '100%' }}
         maxBounds={RUSSIA_BOUNDS}
         maxBoundsViscosity={1}
@@ -689,8 +752,10 @@ export function MapPage() {
         <TileLayer
           noWrap
           bounds={RUSSIA_BOUNDS}
-          attribution={YANDEX_KEY ? '&copy; <a href="https://yandex.ru/maps">Яндекс</a>' : '&copy; OpenStreetMap &copy; CARTO'}
-          url={YANDEX_TILES}
+          attribution={TILE_ATTR}
+          url={TILES}
+          tileSize={MAPBOX_TOKEN ? 512 : 256}
+          zoomOffset={MAPBOX_TOKEN ? -1 : 0}
           maxZoom={19}
           maxNativeZoom={19}
         />
@@ -748,14 +813,19 @@ export function MapPage() {
                     return
                   }
                   clickTimer.current = window.setTimeout(() => {
-                    if (readOnlyRef.current) inspectPoint(event.latlng.lat, event.latlng.lng, zoom, code ?? undefined)
-                    else startAddAt(event.latlng.lat, event.latlng.lng, undefined, code ?? undefined)
+                    inspectPoint(event.latlng.lat, event.latlng.lng, zoom, code ?? undefined)
                   }, 280)
                 },
                 dblclick: (event) => {
                   L.DomEvent.stop(event.originalEvent)
                   window.clearTimeout(clickTimer.current)
                   if (code) setSelectedCode(code)
+                },
+                contextmenu: (event) => {
+                  L.DomEvent.preventDefault(event)
+                  L.DomEvent.stop(event.originalEvent)
+                  if (addingPlaceRef.current || readOnlyRef.current) return
+                  dropCoordPin(event.latlng.lat, event.latlng.lng, code ?? undefined)
                 },
               })
             }}
@@ -796,7 +866,9 @@ export function MapPage() {
             items={here.items}
             address={here.address}
             canAdd={!readOnly}
-            onAdd={() => startAddAt(here.lat, here.lng, here.items[0]?.name, here.regionCode)}
+            onAdd={() =>
+              startAddAt(here.lat, here.lng, here.items[0]?.name, here.regionCode, here.items[0]?.description)
+            }
             onClose={() => setHere(null)}
           />
         )}
@@ -806,20 +878,34 @@ export function MapPage() {
           onMapClick={(lat, lng, zoom) => {
             setOpenPlaceId(undefined)
             if (zoom < OBJECT_ZOOM) return
-            if (readOnly) inspectPoint(lat, lng, zoom)
-            else startAddAt(lat, lng)
+            inspectPoint(lat, lng, zoom)
+          }}
+          onDropPin={(lat, lng) => {
+            if (readOnly) return
+            dropCoordPin(lat, lng)
           }}
         />
       </MapContainer>
 
       {!addingPlace && (
-        <MapSearch
+        <div className="map-tools">
+          <MapSearch
           places={places}
           near={mapCenter}
           onPickHit={(hit: GeoHit) => {
             setFlyTarget({ lat: hit.lat, lng: hit.lng, bbox: hit.bbox, key: Date.now() })
-            if (readOnly) inspectPoint(hit.lat, hit.lng, 16)
-            else startAddAt(hit.lat, hit.lng, hit.name)
+            if (hit.kind === 'точка') {
+              dropCoordPin(hit.lat, hit.lng)
+              return
+            }
+            inspectPoint(hit.lat, hit.lng, 16, undefined, [
+              {
+                name: hit.name,
+                kind: ruKind(hit.kind),
+                description: hit.description ?? undefined,
+                notable: true,
+              },
+            ])
           }}
           onPickPlace={(place) => {
             setHere(null)
@@ -828,6 +914,12 @@ export function MapPage() {
             setOpenPlaceId(place.id)
           }}
         />
+          {!readOnly && (
+            <button className="map-drop-pin" type="button" onClick={startDropPin}>
+              Точка
+            </button>
+          )}
+        </div>
       )}
 
       {selected && !addingPlace && (

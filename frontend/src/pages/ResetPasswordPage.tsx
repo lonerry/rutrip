@@ -53,6 +53,7 @@ export function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={busy}
               />
             </label>
             <label className="field">
@@ -63,10 +64,11 @@ export function ResetPasswordPage() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
+                disabled={busy}
               />
             </label>
             <button className="btn full" style={{ marginTop: 20 }} type="submit" disabled={busy}>
-              Сохранить и войти
+              {busy ? 'Сохраняю…' : 'Сохранить и войти'}
             </button>
             <p className="muted" style={{ textAlign: 'center', marginTop: 16 }}>
               <Link to="/login">Вернуться ко входу</Link>

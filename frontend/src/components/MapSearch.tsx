@@ -1,8 +1,23 @@
 import { Search } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api'
+import { searchPlaces } from '../geoSearch'
 import { ruKind } from '../here'
 import type { GeoHit, Place } from '../types'
+
+function parseCoords(query: string) {
+  const match = query.trim().match(/^(-?\d{1,3}(?:[.,]\d+)?)\s*[,;]\s*(-?\d{1,3}(?:[.,]\d+)?)$/)
+    ?? query.trim().match(/^(-?\d{1,3}(?:\.\d+)?)\s+(-?\d{1,3}(?:\.\d+)?)$/)
+  if (!match) return null
+  const lat = Number(match[1].replace(',', '.'))
+  const lng = Number(match[2].replace(',', '.'))
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+  if (!match[1].includes('.') && !match[1].includes(',') && !match[2].includes('.') && !match[2].includes(',')) {
+    return null
+  }
+  return { lat, lng }
+}
 
 export function MapSearch({
   places,
@@ -34,8 +49,20 @@ export function MapSearch({
     return places.filter((place) => place.title.toLowerCase().includes(needle)).slice(0, 3)
   }, [places, q])
 
+  const coords = useMemo(() => parseCoords(q), [q])
+  const coordHit: GeoHit | null = coords
+    ? {
+        name: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`,
+        description: 'Точка по координатам',
+        lat: coords.lat,
+        lng: coords.lng,
+        bbox: null,
+        kind: 'точка',
+      }
+    : null
+
   useEffect(() => {
-    if (q.length < 2) {
+    if (q.length < 2 || coords) {
       setHits([])
       setLoading(false)
       return
@@ -43,7 +70,7 @@ export function MapSearch({
     const id = ++seq.current
     setLoading(true)
     const timer = window.setTimeout(() => {
-      api.geoSearch(q, nearRef.current)
+      searchPlaces(q, nearRef.current, api.geoSearch)
         .then((next) => {
           if (id !== seq.current) return
           setHits(next)
@@ -54,7 +81,7 @@ export function MapSearch({
         .finally(() => {
           if (id === seq.current) setLoading(false)
         })
-    }, 320)
+    }, 140)
     return () => window.clearTimeout(timer)
   }, [q])
 
@@ -67,7 +94,7 @@ export function MapSearch({
   }, [])
 
   const showList = open && q.length >= 2
-  const empty = !loading && mine.length === 0 && hits.length === 0
+  const empty = !loading && mine.length === 0 && hits.length === 0 && !coordHit
 
   return (
     <div className="map-search" ref={boxRef} onMouseDown={(event) => event.stopPropagation()}>
@@ -91,6 +118,10 @@ export function MapSearch({
                 onPickPlace(mine[0])
                 setQuery('')
                 setOpen(false)
+              } else if (coordHit) {
+                onPickHit(coordHit)
+                setQuery('')
+                setOpen(false)
               } else if (hits[0]) {
                 onPickHit(hits[0])
                 setQuery('')
@@ -98,7 +129,7 @@ export function MapSearch({
               }
             }
           }}
-          placeholder="Найти озеро, город, место…"
+          placeholder="Место или 56.01, 92.87"
           autoComplete="off"
         />
         {query && (
@@ -131,6 +162,19 @@ export function MapSearch({
               <span className="muted">Моя точка</span>
             </button>
           ))}
+          {coordHit && (
+            <button
+              type="button"
+              onClick={() => {
+                onPickHit(coordHit)
+                setQuery('')
+                setOpen(false)
+              }}
+            >
+              <strong>{coordHit.name}</strong>
+              <span className="muted">Точка по координатам</span>
+            </button>
+          )}
           {hits.map((hit, index) => (
             <button
               key={`${hit.name}:${hit.lat}:${hit.lng}:${index}`}

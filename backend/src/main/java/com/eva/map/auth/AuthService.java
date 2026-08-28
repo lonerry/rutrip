@@ -106,7 +106,11 @@ public class AuthService {
             row.setTokenHash(hashToken(token));
             row.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
             passwordResetTokenRepository.save(row);
-            mailService.sendPasswordReset(user.getEmail(), publicUrl + "/reset-password?token=" + token);
+            mailService.sendPasswordReset(
+                    user.getEmail(),
+                    user.getDisplayName(),
+                    publicUrl + "/reset-password?token=" + token
+            );
         });
         return new MessageResponse("Если такой email есть в Rutrip, отправим ссылку для нового пароля.");
     }

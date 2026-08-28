@@ -188,7 +188,15 @@ export function FriendPage() {
                   <article
                     key={story.id}
                     className={`story-card${openId === story.id ? ' open' : ''}`}
+                    tabIndex={0}
+                    role="button"
                     onClick={() => openStory(story.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        openStory(story.id)
+                      }
+                    }}
                   >
                     <div className={`cover${cover ? '' : ' story-cover-empty'}`}>
                       {cover && (

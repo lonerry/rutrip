@@ -182,7 +182,7 @@ export function RegionSheet({
           </p>
         ) : (
           <button className={`btn full ${region.visited ? 'light' : 'teal'}`} type="button" disabled={busy} onClick={toggleVisit}>
-            {region.visited ? 'Снять отметку' : 'Я здесь была'}
+            {busy ? (region.visited ? 'Снимаю…' : 'Отмечаю…') : region.visited ? 'Снять отметку' : 'Я здесь была'}
           </button>
         )}
         {region.visited && (
